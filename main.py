@@ -4,6 +4,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 import time
+import os
 from typing import Annotated, List
 import json
 from datetime import datetime
@@ -155,6 +156,13 @@ async def read_items(commons: Annotated[dict, Depends(common_parameters)]):
     print("All Common ", commons["q"])
     return commons
 
+# For Render deployment - this will run when the module is imported
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    # Get port from environment variable (Render sets this)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
+else:
+    # This ensures the app runs properly when imported by gunicorn/uvicorn
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
