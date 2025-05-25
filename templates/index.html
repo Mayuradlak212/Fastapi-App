@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Chat App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    animation: {
+                        'fade-in': 'fadeIn 0.5s ease-in-out',
+                        'slide-up': 'slideUp 0.5s ease-out'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes slideUp {
+            from { transform: translateY(30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="text-center mb-12 animate-fade-in">
+            <h1 class="text-5xl font-bold text-white mb-4">
+                💬 WebSocket Chat
+            </h1>
+            <p class="text-xl text-blue-200">
+                Real-time messaging with FastAPI & WebSockets
+            </p>
+        </div>
+
+        <!-- Main Content -->
+        <div class="max-w-md mx-auto">
+            <!-- Join Chat Card -->
+            <div class="bg-white/10 backdrop-blur-lg rounded-2xl p-8 shadow-2xl border border-white/20 animate-slide-up">
+                <div class="text-center mb-6">
+                    <div class="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <span class="text-2xl">🚀</span>
+                    </div>
+                    <h2 class="text-2xl font-bold text-white mb-2">Join the Chat</h2>
+                    <p class="text-blue-200">Enter your username to get started</p>
+                </div>
+
+                <form id="joinForm" class="space-y-4">
+                    <div>
+                        <input 
+                            type="text" 
+                            id="username" 
+                            placeholder="Enter your username..."
+                            class="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/30 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all"
+                            required
+                            maxlength="20"
+                        >
+                    </div>
+                    <button 
+                        type="submit"
+                        class="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold py-3 px-6 rounded-lg hover:from-blue-600 hover:to-purple-700 transform hover:scale-105 transition-all duration-200 shadow-lg"
+                    >
+                        Join Chat Room 🎉
+                    </button>
+                </form>
+            </div>
+
+            <!-- Features -->
+            <div class="mt-8 grid grid-cols-2 gap-4">
+                <div class="bg-white/5 backdrop-blur rounded-lg p-4 text-center">
+                    <span class="text-2xl mb-2 block">⚡</span>
+                    <p class="text-white text-sm">Real-time</p>
+                </div>
+                <div class="bg-white/5 backdrop-blur rounded-lg p-4 text-center">
+                    <span class="text-2xl mb-2 block">🔒</span>
+                    <p class="text-white text-sm">Secure</p>
+                </div>
+            </div>
+
+            <!-- Online Users -->
+            <div class="mt-6 bg-white/5 backdrop-blur rounded-lg p-4 text-center">
+                <p class="text-blue-200 text-sm mb-1">Online Users</p>
+                <p id="onlineCount" class="text-2xl font-bold text-white">Loading...</p>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center mt-12 text-blue-300">
+            <p>Built with FastAPI, WebSockets & Tailwind CSS</p>
+        </div>
+    </div>
+
+    <script>
+        // Get online users count
+        async function updateOnlineCount() {
+            try {
+                const response = await fetch('/api/online-users');
+                const data = await response.json();
+                document.getElementById('onlineCount').textContent = data.online_users;
+            } catch (error) {
+                document.getElementById('onlineCount').textContent = '0';
+            }
+        }
+
+        // Update count every 5 seconds
+        updateOnlineCount();
+        setInterval(updateOnlineCount, 5000);
+
+        // Handle form submission
+        document.getElementById('joinForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const username = document.getElementById('username').value.trim();
+            if (username) {
+                // Redirect to chat room
+                window.location.href = `/chat?username=${encodeURIComponent(username)}`;
+            }
+        });
+
+        // Allow Enter key to submit
+        document.getElementById('username').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                document.getElementById('joinForm').dispatchEvent(new Event('submit'));
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Room - WebSocket Chat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .message-enter {
+            animation: messageSlide 0.3s ease-out;
+        }
+        @keyframes messageSlide {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        #messages {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(59, 130, 246, 0.5) transparent;
+        }
+        #messages::-webkit-scrollbar {
+            width: 6px;
+        }
+        #messages::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        #messages::-webkit-scrollbar-thumb {
+            background: rgba(59, 130, 246, 0.5);
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 min-h-screen">
+    <div class="container mx-auto h-screen flex flex-col p-4">
+        <!-- Header -->
+        <div class="bg-white/10 backdrop-blur-lg rounded-t-2xl px-6 py-4 border-b border-white/20">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center space-x-3">
+                    <div class="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+                    <h1 class="text-xl font-bold text-white">Chat Room</h1>
+                    <span id="onlineCount" class="bg-blue-500 text-white text-xs px-2 py-1 rounded-full">0 online</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span id="currentUser" class="text-blue-200 text-sm"></span>
+                    <button onclick="leaveChat()" class="text-red-400 hover:text-red-300 transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Messages Area -->
+        <div class="flex-1 bg-white/5 backdrop-blur-lg overflow-hidden">
+            <div id="messages" class="h-full overflow-y-auto p-6 space-y-4">
+                <!-- Chat history will be loaded here -->
+                {% for msg in chat_history %}
+                <div class="flex items-start space-x-3 message-enter">
+                    {% if msg.type == 'system' %}
+                    <div class="w-full text-center">
+                        <span class="bg-yellow-500/20 text-yellow-200 px-3 py-1 rounded-full text-sm">
+                            {{ msg.message }}
+                        </span>
+                        <span class="text-xs text-gray-400 ml-2">{{ msg.timestamp }}</span>
+                    </div>
+                    {% else %}
+                    <div class="w-8 h-8 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+                        {{ msg.username[0].upper() }}
+                    </div>
+                    <div class="flex-1">
+                        <div class="bg-white/10 rounded-lg px-4 py-2 max-w-md">
+                            <div class="flex items-center space-x-2 mb-1">
+                                <span class="text-blue-300 font-semibold text-sm">{{ msg.username }}</span>
+                                <span class="text-xs text-gray-400">{{ msg.timestamp }}</span>
+                            </div>
+                            <p class="text-white">{{ msg.message }}</p>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Message Input -->
+        <div class="bg-white/10 backdrop-blur-lg rounded-b-2xl px-6 py-4 border-t border-white/20">
+            <form id="messageForm" class="flex space-x-3">
+                <input 
+                    type="text" 
+                    id="messageInput" 
+                    placeholder="Type your message..."
+                    class="flex-1 px-4 py-3 rounded-lg bg-white/10 border border-white/30 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all"
+                    maxlength="500"
+                    autocomplete="off"
+                >
+                <button 
+                    type="submit"
+                    class="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 py-3 rounded-lg hover:from-blue-600 hover:to-purple-700 transform hover:scale-105 transition-all duration-200 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                    id="sendButton"
+                >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                    </svg>
+                </button>
+            </form>
+        </div>
+
+        <!-- Connection Status -->
+        <div id="connectionStatus" class="fixed top-4 right-4 px-4 py-2 rounded-lg shadow-lg transition-all duration-300 transform translate-y-[-100px] opacity-0">
+            <span id="statusText"></span>
+        </div>
+    </div>
+
+    <script>
+        // Get username from URL or prompt
+        const urlParams = new URLSearchParams(window.location.search);
+        let username = urlParams.get('username') || prompt('Enter your username:') || 'Anonymous';
+        
+        // Update current user display
+        document.getElementById('currentUser').textContent = `@${username}`;
+
+        // WebSocket connection
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws/${encodeURIComponent(username)}`;
+        let ws = new WebSocket(wsUrl);
+        
+        const messagesDiv = document.getElementById('messages');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+        const statusDiv = document.getElementById('connectionStatus');
+
+        // Connection status handler
+        function showStatus(message, type = 'info') {
+            const statusText = document.getElementById('statusText');
+            statusText.textContent = message;
+            
+            statusDiv.className = `fixed top-4 right-4 px-4 py-2 rounded-lg shadow-lg transition-all duration-300 transform translate-y-0 opacity-100`;
+            
+            if (type === 'error') {
+                statusDiv.classList.add('bg-red-500', 'text-white');
+            } else if (type === 'success') {
+                statusDiv.classList.add('bg-green-500', 'text-white');
+            } else {
+                statusDiv.classList.add('bg-blue-500', 'text-white');
+            }
+            
+            setTimeout(() => {
+                statusDiv.className = statusDiv.className.replace('translate-y-0 opacity-100', 'translate-y-[-100px] opacity-0');
+            }, 3000);
+        }
+
+        // WebSocket event handlers
+        ws.onopen = function(event) {
+            console.log('Connected to WebSocket');
+            showStatus('Connected to chat!', 'success');
+            sendButton.disabled = false;
+            updateOnlineCount();
+        };
+
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            addMessage(data);
+            updateOnlineCount();
+        };
+
+        ws.onclose = function(event) {
+            console.log('WebSocket connection closed');
+            showStatus('Disconnected from chat', 'error');
+            sendButton.disabled = true;
+            
+            // Try to reconnect after 3 seconds
+            setTimeout(() => {
+                showStatus('Reconnecting...', 'info');
+                ws = new WebSocket(wsUrl);
+                bindWSEvents();
+            }, 3000);
+        };
+
+        ws.onerror = function(error) {
+            console.error('WebSocket error:', error);
+            showStatus('Connection error', 'error');
+        };
+
+        function bindWSEvents() {
+            ws.onopen = arguments.callee.onopen || ws.onopen;
+            ws.onmessage = arguments.callee.onmessage || ws.onmessage;
+            ws.onclose = arguments.callee.onclose || ws.onclose;
+            ws.onerror = arguments.callee.onerror || ws.onerror;
+        }
+
+        // Add message to chat
+        function addMessage(data) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'flex items-start space-x-3 message-enter';
+            
+            if (data.type === 'system') {
+                messageDiv.innerHTML = `
+                    <div class="w-full text-center">
+                        <span class="bg-yellow-500/20 text-yellow-200 px-3 py-1 rounded-full text-sm">
+                            ${data.message}
+                        </span>
+                        <span class="text-xs text-gray-400 ml-2">${data.timestamp}</span>
+                    </div>
+                `;
+            } else {
+                const isCurrentUser = data.username === username;
+                messageDiv.innerHTML = `
+                    <div class="w-8 h-8 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+                        ${data.username[0].toUpperCase()}
+                    </div>
+                    <div class="flex-1">
+                        <div class="bg-white/10 rounded-lg px-4 py-2 max-w-md ${isCurrentUser ? 'bg-blue-500/20' : ''}">
+                            <div class="flex items-center space-x-2 mb-1">
+                                <span class="text-blue-300 font-semibold text-sm">${data.username}</span>
+                                <span class="text-xs text-gray-400">${data.timestamp}</span>
+                            </div>
+                            <p class="text-white">${escapeHtml(data.message)}</p>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // Send message
+        function sendMessage() {
+            const message = messageInput.value.trim();
+            if (message && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ message: message }));
+                messageInput.value = '';
+            }
+        }
+
+        // Form submit handler
+        document.getElementById('messageForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            sendMessage();
+        });
+
+        // Update online count
+        async function updateOnlineCount() {
+            try {
+                const response = await fetch('/api/online-users');
+                const data = await response.json();
+                document.getElementById('onlineCount').textContent = `${data.online_users} online`;
+            } catch (error) {
+                console.error('Failed to update online count:', error);
+            }
+        }
+
+        // Leave chat
+        function leaveChat() {
+            if (confirm('Are you sure you want to leave the chat?')) {
+                ws.close();
+                window.location.href = '/';
+            }
+        }
+
+        // Utility function to escape HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Auto-focus message input
+        messageInput.focus();
+
+        // Update online count every 10 seconds
+        setInterval(updateOnlineCount, 10000);
+    </script>
+</body>
+</html>
