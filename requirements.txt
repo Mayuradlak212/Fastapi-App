@@ -14,6 +14,13 @@ pydantic==2.5.0
 # Python standard library enhancements
 python-multipart==0.0.6
 
+# HTTP client libraries (for API requests)
+aiohttp==3.9.1
+requests==2.31.0
+
+# ASGI middleware support
+starlette==0.27.0
+
 # Optional: If you need additional features
 # Uncomment the ones you need:
 
