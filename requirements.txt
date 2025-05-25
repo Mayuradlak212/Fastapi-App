@@ -21,6 +21,12 @@ requests==2.31.0
 # ASGI middleware support
 starlette==0.27.0
 
+# Production server
+gunicorn==21.2.0
+
+# Vercel adapter for ASGI applications
+mangum==0.17.0
+
 # Optional: If you need additional features
 # Uncomment the ones you need:
 
